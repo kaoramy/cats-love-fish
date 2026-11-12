@@ -1,0 +1,16 @@
+{
+  "name": "Cats love fish",
+  "short_name": "Cats love fish",
+  "description": "Учёт расходов: офлайн, данные только на устройстве",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#A270C1",
+  "theme_color": "#F4EEF0",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

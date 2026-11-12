@@ -1,0 +1,5 @@
+# личное и исходники картинок: в публичный репозиторий не попадают
+PLAN.md
+FIREBASE.md
+assets/source-*.webp
+.claude/
