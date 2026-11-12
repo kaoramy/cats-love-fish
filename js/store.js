@@ -29,6 +29,18 @@ function emit(what) {
   }
 }
 
+// Подписка на локальные записи (для отправки в семью). Отдельно от onChange: не перерисовывает экран.
+const writeListeners = new Set();
+export function onWrite(fn) {
+  writeListeners.add(fn);
+  return () => writeListeners.delete(fn);
+}
+function touched(kind) {
+  for (const fn of writeListeners) {
+    try { fn(kind); } catch (e) { console.error(e); }
+  }
+}
+
 // ---------- запуск ----------
 export async function initStore() {
   // Категории: досеваем встроенные, которых ещё нет. Изменения пользователя не трогаем.
@@ -117,6 +129,7 @@ export async function saveCat(c) {
   };
   await db.put('cats', rec);
   setCats(isNew || !state.catMap.has(rec.id) ? [...state.cats, rec] : state.cats.map(x => x.id === rec.id ? rec : x));
+  touched('cat');
   emit('cats');
   return rec;
 }
@@ -179,6 +192,7 @@ export async function learnDict(name, catId) {
   await db.put('dict', e);
   state.userDict.set(key, e);
   indexUserDict(state.userDict);
+  touched('dict');
 }
 
 // ---------- операции ----------
@@ -211,6 +225,7 @@ export async function saveOp(op) {
   if (!state.settings.currencies.includes(o.currency)) {
     await setSetting('currencies', [...state.settings.currencies, o.currency]);
   }
+  touched('op');
   emit('ops');
   return o;
 }
@@ -222,7 +237,43 @@ export async function deleteOp(id) {
   if (!o || o.deleted) return;
   await db.put('ops', { id: o.id, date: o.date, type: o.type, amount: 0, currency: o.currency, cat: o.cat,
     createdAt: o.createdAt, deleted: true, updatedAt: Date.now() });
+  touched('op');
   emit('ops');
+}
+
+// ---------- обмен с семьёй (используется sync.js) ----------
+// Всё, что изменено после момента since (мс): отправляем в семью.
+export async function localSince(since) {
+  const [ops, cats, dict] = await Promise.all([db.all('ops'), db.all('cats'), db.all('dict')]);
+  const pick = list => list.filter(x => (x.updatedAt || 0) > since);
+  return { ops: pick(ops), cats: pick(cats), dict: pick(dict) };
+}
+
+// Принять запись от другого устройства: побеждает та, у которой updatedAt больше. Возвращает true, если записали.
+export async function applyRemote(kind, rec) {
+  const name = kind === 'op' ? 'ops' : kind === 'cat' ? 'cats' : 'dict';
+  const key = name === 'dict' ? 'key' : 'id';
+  if (!rec || rec[key] == null) return false;
+  const old = await db.get(name, rec[key]);
+  if (old && (old.updatedAt || 0) >= (rec.updatedAt || 0)) return false;
+  await db.put(name, rec);
+  if (kind === 'cat') setCats(state.catMap.has(rec.id) ? state.cats.map(c => c.id === rec.id ? rec : c) : [...state.cats, rec]);
+  if (kind === 'dict') { state.userDict.set(rec.key, rec); indexUserDict(state.userDict); }
+  if (kind === 'op' && rec.currency && !state.settings.currencies.includes(rec.currency)) {
+    state.settings.currencies = [...state.settings.currencies, rec.currency];
+    await db.put('settings', { key: 'currencies', value: state.settings.currencies });
+  }
+  return true;
+}
+
+// Сказать экранам, что пришли чужие изменения (add и settings при этом не перерисовываются, см. app.js).
+export const remoteApplied = () => emit('remote');
+
+// Настройки синхронизации без перерисовки экрана.
+export async function setQuiet(key, value) {
+  if (value === undefined) { delete state.settings[key]; await db.del('settings', key); return; }
+  state.settings[key] = value;
+  await db.put('settings', { key, value });
 }
 
 // ---------- итоги ----------

@@ -7,6 +7,7 @@ import * as ops from './views/ops.js';
 import * as add from './views/add.js';
 import * as settings from './views/settings.js';
 import { grainUrl } from './grain.js';
+import { startSync } from './sync.js';
 
 const ROUTES = { home, ops, add, settings };
 const TAB_OF = { home: 'home', ops: 'ops', add: 'add', settings: 'home' };
@@ -56,12 +57,17 @@ async function boot() {
     return;
   }
   window.addEventListener('hashchange', () => show());
-  onChange(() => show({ keepScroll: true }));
+  // Чужие изменения из семьи не должны стирать то, что человек сейчас вводит: на «Добавить» и в настройках не перерисовываем.
+  onChange(what => {
+    if (what === 'remote' && ['add', 'settings'].includes(parseHash().name)) return;
+    show({ keepScroll: true });
+  });
   // повторное нажатие на активную вкладку — наверх
   $$('.tab').forEach(t => t.addEventListener('click', () => {
     if (location.hash === t.getAttribute('href')) window.scrollTo({ top: 0, behavior: 'smooth' });
   }));
   await show();
+  startSync();
   // фон с напылением рисуем после первого экрана, чтобы не задерживать запуск
   grainUrl().then(u => { const bg = $('#bg'); if (bg) bg.style.backgroundImage = `url(${u})`; }).catch(e => console.warn(e));
 }

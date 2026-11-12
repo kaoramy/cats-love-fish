@@ -1,6 +1,6 @@
 // Service worker: офлайн-режим.
 // ВЕРСИЯ: при каждом выпуске менять число ниже, иначе телефон покажет старую версию из кэша.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CORE = `clf-core-${VERSION}`;
 const RUNTIME = `clf-run-${VERSION}`;
 
@@ -9,7 +9,7 @@ const RUNTIME = `clf-run-${VERSION}`;
 const CORE_FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/store.js', 'js/db.js', 'js/util.js', 'js/categories.js', 'js/classifier.js',
-  'js/dictionary.js', 'js/grain.js', 'js/icons.js', 'js/ocr.js', 'js/parser.js',
+  'js/dictionary.js', 'js/grain.js', 'js/icons.js', 'js/sync.js', 'js/firebase-config.js', 'js/ocr.js', 'js/parser.js',
   'js/views/home.js', 'js/views/ops.js', 'js/views/add.js', 'js/views/settings.js',
   'assets/icon-180.png', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/cat.png', 'assets/splash.jpg',
 ];

@@ -414,3 +414,9 @@ body { background: transparent; }
 .mascot-b, .mascot-c { padding: 18px 22px; box-sizing: content-box; max-width: calc(100% - 44px); }
 .logo .mascot { padding: 4px 6px; box-sizing: content-box; width: 58px; }
 .set-note[hidden] { display: none; }
+
+/* ---------- Семья ---------- */
+.fam-form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.fam-code { display: block; margin-top: 4px; padding: 8px 10px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); font: 600 14px ui-monospace, Menlo, Consolas, monospace; word-break: break-all; user-select: all; -webkit-user-select: all; }
+.set-note.bad { color: #A8454F; }
+button:disabled.btn { opacity: .6; }

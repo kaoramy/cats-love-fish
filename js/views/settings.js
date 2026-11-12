@@ -1,6 +1,7 @@
 // Настройки (#settings): валюты, категории (имя, значок, цвет), резервная копия JSON.
 import { iconHtml } from '../icons.js';
 import { warmOcrCache } from '../ocr.js';
+import { createFamily, joinFamily, leaveFamily, syncNow, onStatus } from '../sync.js';
 import { state, allOps, setSetting, saveCat, exportAll, importAll, checkBackup } from '../store.js';
 import { PALETTE, EMOJI_CHOICES } from '../categories.js';
 import { esc, CURRENCIES, curSymbol, todayISO, fmtDate } from '../util.js';
@@ -13,6 +14,9 @@ export async function render(el) {
     catTab: 'expense',
     edit: null,          // редактируемая категория: объект (новая — без id)
     pending: null,       // файл копии, ждущий решения: { data, info }
+    fam: null,           // форма семьи: 'create' | 'join'
+    ff: { code: '', phrase: '' },
+    famMsg: '', famBusy: false, showCode: false, confirmLeave: false,
     confirmReplace: false,
     msg: '',
   };
@@ -26,9 +30,11 @@ export async function render(el) {
       </header>
       ${currenciesCard()}
       ${categoriesCard()}
+      ${familyCard()}
       ${offlineCard()}
       ${backupCard()}
       ${S.edit ? catSheet() : ''}`;
+    bindStatus();
   }
 
   // ---------- валюты ----------
@@ -112,6 +118,94 @@ export async function render(el) {
       </div>`;
   }
 
+  // ---------- семья (общий доступ) ----------
+  function familyCard() {
+    const cfg = state.settings.sync;
+    const intro = `<p class="set-hint">Общие траты на двух телефонах. Всё шифруется на устройстве семейной фразой: сервер видит только шифр и не может прочитать записи. Без сети работает как обычно, обмен случится позже.</p>`;
+    if (cfg) {
+      const code = S.showCode ? `
+        <div class="set-note">Отправьте второму человеку код и фразу <b>разными сообщениями</b>.<br><br>
+        Код семьи:<br><code class="fam-code">${esc(cfg.familyId)}</code><br><br>
+        Фраза:<br><code class="fam-code">${esc(cfg.phrase)}</code></div>` : '';
+      const leave = S.confirmLeave
+        ? `<p class="set-hint bad">Вы выйдете из семьи: на этом телефоне останутся все записи, но обмен прекратится. Вернуться можно по коду и фразе.</p>
+           <div class="sheet-actions"><button type="button" class="btn btn-danger" data-fam="leave-yes">Выйти</button><button type="button" class="btn btn-ghost" data-fam="leave-no">Отмена</button></div>`
+        : `<button type="button" class="btn btn-ghost btn-wide set-add" data-fam="leave">Выйти из семьи</button>`;
+      return `
+        <section class="card">
+          <div class="card-head"><h2>Семья</h2></div>
+          ${intro}
+          <div class="set-note" id="fam-status">Проверяю связь…</div>
+          ${code}
+          <button type="button" class="btn btn-wide" data-fam="sync">Синхронизировать сейчас</button>
+          <button type="button" class="btn btn-ghost btn-wide set-add" data-fam="code">${S.showCode ? 'Скрыть код и фразу' : 'Показать код и фразу'}</button>
+          ${leave}
+        </section>`;
+    }
+    const msg = S.famMsg ? `<div class="form-err">${esc(S.famMsg)}</div>` : '';
+    let form = '';
+    if (S.fam === 'create') {
+      form = `
+        <label class="field"><span>Придумайте семейную фразу (от 8 символов)</span>
+          <input type="text" data-ff="phrase" value="${esc(S.ff.phrase)}" placeholder="Например, рыбки любят котиков" autocomplete="off"></label>
+        <p class="set-hint">Фразу знают только вы двое. Если её потерять, расшифровать данные из облака нельзя.</p>
+        ${msg}
+        <button type="button" class="btn btn-wide" data-fam="create-go"${S.famBusy ? ' disabled' : ''}>${S.famBusy ? 'Подождите…' : 'Создать семью'}</button>`;
+    } else if (S.fam === 'join') {
+      form = `
+        <label class="field"><span>Код семьи</span>
+          <input type="text" data-ff="code" value="${esc(S.ff.code)}" placeholder="32 символа" autocomplete="off" autocapitalize="off"></label>
+        <label class="field"><span>Семейная фраза</span>
+          <input type="text" data-ff="phrase" value="${esc(S.ff.phrase)}" autocomplete="off"></label>
+        ${msg}
+        <button type="button" class="btn btn-wide" data-fam="join-go"${S.famBusy ? ' disabled' : ''}>${S.famBusy ? 'Подождите…' : 'Войти в семью'}</button>`;
+    }
+    return `
+      <section class="card">
+        <div class="card-head"><h2>Семья</h2></div>
+        ${intro}
+        <div class="seg" role="group">
+          <button type="button" class="${S.fam === 'create' ? 'on' : ''}" data-fam="create">Создать семью</button>
+          <button type="button" class="${S.fam === 'join' ? 'on' : ''}" data-fam="join">Войти в семью</button>
+        </div>
+        <div class="fam-form">${form}</div>
+      </section>`;
+  }
+
+  let offStatus = null;
+  function bindStatus() {
+    if (offStatus) offStatus();
+    offStatus = onStatus(st => {
+      const n = el.querySelector('#fam-status');
+      if (!n || !el.isConnected) return;
+      const label = { off: 'Не подключено', connecting: 'Подключаюсь…', ok: 'Подключено: изменения обмениваются автоматически.', offline: st.text || 'Нет сети.', error: st.text || 'Ошибка.' }[st.state];
+      n.textContent = label;
+      n.classList.toggle('bad', st.state === 'error');
+    });
+  }
+
+  async function famAction(a) {
+    if (a === 'create' || a === 'join') { S.fam = a; S.famMsg = ''; draw(); return; }
+    if (a === 'code') { S.showCode = !S.showCode; draw(); return; }
+    if (a === 'sync') { await syncNow(); return; }
+    if (a === 'leave') { S.confirmLeave = true; draw(); return; }
+    if (a === 'leave-no') { S.confirmLeave = false; draw(); return; }
+    if (a === 'leave-yes') { S.confirmLeave = false; S.showCode = false; await leaveFamily(); return; }
+    if (a === 'create-go' || a === 'join-go') {
+      S.famBusy = true; S.famMsg = ''; draw();
+      try {
+        if (a === 'create-go') await createFamily(S.ff.phrase);
+        else await joinFamily(S.ff.code, S.ff.phrase);
+        S.famBusy = false; S.fam = null; S.ff = { code: '', phrase: '' }; S.showCode = a === 'create-go';
+        draw();
+      } catch (e) {
+        S.famBusy = false;
+        S.famMsg = e.message || String(e);
+        draw();
+      }
+    }
+  }
+
   // ---------- работа без интернета ----------
   function offlineCard() {
     return `
@@ -193,6 +287,8 @@ export async function render(el) {
 
   // ---------- события ----------
   el.addEventListener('input', e => {
+    const ff = e.target.dataset.ff;
+    if (ff) { S.ff[ff] = e.target.value; return; }
     const f = e.target.dataset.cf;
     if (f && S.edit) S.edit[f] = e.target.value;
   });
@@ -219,6 +315,7 @@ export async function render(el) {
     const b = e.target.closest('button');
     if (!b) return;
     const d = b.dataset;
+    if (d.fam) { await famAction(d.fam); return; }
     if (d.rmcur) await setSetting('currencies', state.settings.currencies.filter(c => c !== d.rmcur));
     else if (d.cattab) { S.catTab = d.cattab; draw(); }
     else if (d.editcat) { S.edit = { ...state.catMap.get(d.editcat) }; draw(); }
