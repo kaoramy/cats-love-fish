@@ -187,7 +187,8 @@ export async function readPdf(file, onProgress = () => {}) {
   await loadScript(BASE + 'pdfjs/pdf.min.js');
   const lib = window.pdfjsLib;
   lib.GlobalWorkerOptions.workerSrc = BASE + 'pdfjs/pdf.worker.min.js';
-  const pdf = await lib.getDocument({ data: await file.arrayBuffer() }).promise;
+  // isEvalSupported: false — защита от CVE-2024-4367: вредоносный PDF не должен выполнять код через шрифты.
+  const pdf = await lib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
   const lines = [];
   const pages = Math.min(pdf.numPages, 6);
   for (let n = 1; n <= pages; n++) {
@@ -228,6 +229,8 @@ export async function readPdf(file, onProgress = () => {}) {
   canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  const done = page.render({ canvasContext: ctx, viewport: vp }).promise;
+  const limit = new Promise((_, rej) => setTimeout(() => rej(new Error('PDF не получилось открыть: страница рисуется слишком долго')), 25000));
+  await Promise.race([done, limit]);
   return { canvas };
 }
