@@ -420,3 +420,14 @@ body { background: transparent; }
 .fam-code { display: block; margin-top: 4px; padding: 8px 10px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); font: 600 14px ui-monospace, Menlo, Consolas, monospace; word-break: break-all; user-select: all; -webkit-user-select: all; }
 .set-note.bad { color: #A8454F; }
 button:disabled.btn { opacity: .6; }
+
+/* iPhone: поле даты не должно быть шире карточки */
+input[type="date"] {
+  -webkit-appearance: none; appearance: none;
+  display: block; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
+  text-align: left; line-height: 44px;
+}
+input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; min-height: 1.2em; }
+input[type="date"]::-webkit-datetime-edit { padding: 0; }
+.field, .form { min-width: 0; }
+.card, .form, .field { max-width: 100%; }

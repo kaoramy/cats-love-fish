@@ -1,6 +1,6 @@
 // Service worker: офлайн-режим.
 // ВЕРСИЯ: при каждом выпуске менять число ниже, иначе телефон покажет старую версию из кэша.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CORE = `clf-core-${VERSION}`;
 const RUNTIME = `clf-run-${VERSION}`;
 
